@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-import joblib
+import cloudpickle
 import requests
 import tempfile
 import pandas as pd
@@ -14,29 +14,29 @@ load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# List of models
-model_files = {
-    "Logistic Regression": "logistic_regression_model.joblib",
-    "Decision Tree": "decision_tree_model.joblib",
-    "Random Forest": "random_forest_model.joblib",
-    "SVM": "svm_model.joblib",
-    "KNN": "knn_model.joblib",
-    "Naive Bayes": "naive_bayes_model.joblib",
-    "XGBoost": "xgboost_model.joblib"
-}
-
+# ---------------------- Load models --------------------------
 @st.cache_resource
 def load_models():
+    model_filenames = {
+        "Logistic Regression": "logistic_regression_model.pkl",
+        "Random Forest": "random_forest_model.pkl",
+        "KNN": "knn_model.pkl",
+        "Decision Tree": "decision_tree_model.pkl",
+        "SVM": "svm_model.pkl",
+        "Naive Bayes": "naive_bayes_model.pkl"
+    }
     models = {}
-    for name, filename in model_files.items():
+    for name, filename in model_filenames.items():
         model_path = hf_hub_download(repo_id="jaik256/heartDiseasePredictor", filename=filename)
-        models[name] = joblib.load(model_path)
+        with open(model_path, "rb") as f:
+            models[name] = cloudpickle.load(f)
     return models
 
 models = load_models()
 
+# ---------------------- UI --------------------------
 st.title("❤️ Heart Disease Prediction App")
-st.markdown("Upload a report or enter health data to predict heart disease risk using **multiple ML models.**")
+st.markdown("Upload a report or enter health data to predict heart disease risk using multiple ML models!")
 
 option = st.radio("Choose Input Method", ["Enter Manually", "Upload Health Report"])
 
@@ -116,6 +116,7 @@ elif option == "Enter Manually":
 
 if st.button("Predict Heart Disease"):
     features = pd.DataFrame([input_data])
+    
     predictions = {}
     probabilities = {}
 
@@ -125,20 +126,19 @@ if st.button("Predict Heart Disease"):
         predictions[name] = pred
         probabilities[name] = prob
 
-    # Show predictions
-    st.subheader("🩺 Prediction Results from All Models:")
-    for name in models.keys():
-        st.write(f"**{name}** → Risk: {'High' if predictions[name]==1 else 'Low'} | Probability: {probabilities[name]*100:.2f}%")
+    st.subheader("🩺 Prediction Results from Multiple Models:")
+    for name in predictions:
+        st.write(f"**{name}:** {'High Risk' if predictions[name]==1 else 'Low Risk'} | Probability: {probabilities[name]*100:.2f}%")
 
-    # Plot probabilities
-    st.subheader("📊 Model Comparison (Probability of Heart Disease)")
-    fig, ax = plt.subplots()
-    ax.bar(probabilities.keys(), [p*100 for p in probabilities.values()], color='skyblue')
-    ax.set_ylabel('Probability (%)')
-    ax.set_ylim(0, 100)
-    plt.xticks(rotation=45)
-    st.pyplot(fig)
-
-    # Best model
+    # Find best model based on highest probability
     best_model = max(probabilities, key=probabilities.get)
-    st.success(f"✅ **Best Model: {best_model} with {probabilities[best_model]*100:.2f}% probability of heart disease.**")
+    st.success(f"⭐ **Most Confident Model: {best_model} ({probabilities[best_model]*100:.2f}% probability of heart disease)**")
+
+    # Plot comparison
+    st.subheader("📊 Probability Comparison Across Models")
+    fig, ax = plt.subplots(figsize=(8,5))
+    ax.bar(probabilities.keys(), [p*100 for p in probabilities.values()], color='skyblue')
+    ax.set_ylabel("Probability (%)")
+    ax.set_ylim(0, 100)
+    ax.set_title("Heart Disease Probability by Model")
+    st.pyplot(fig)
