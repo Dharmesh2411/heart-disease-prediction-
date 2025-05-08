@@ -1,0 +1,5 @@
+streamlit
+joblib
+huggingface_hub
+openai
+python-dotenv
