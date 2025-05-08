@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-import cloudpickle
+import joblib
 import requests
 import tempfile
 import pandas as pd
@@ -15,7 +15,6 @@ load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # ---------------------- Load models --------------------------
-@st.cache_resource
 def load_models():
     model_filenames = {
         "Logistic Regression": "logistic_regression_model.pkl",
@@ -28,8 +27,19 @@ def load_models():
     models = {}
     for name, filename in model_filenames.items():
         model_path = hf_hub_download(repo_id="jaik256/heartDiseasePredictor", filename=filename)
-        with open(model_path, "rb") as f:
-            models[name] = cloudpickle.load(f)
+        
+        # Ensure the model file is not empty
+        if os.path.getsize(model_path) == 0:
+            raise ValueError(f"Model file {filename} is empty")
+
+        try:
+            # Use joblib for model loading
+            with open(model_path, "rb") as f:
+                models[name] = joblib.load(f)
+        except Exception as e:
+            st.error(f"Error loading model {filename}: {e}")
+            raise
+
     return models
 
 models = load_models()
