@@ -1,5 +1,8 @@
 streamlit
-pandas
 scikit-learn
+pandas
 joblib
 huggingface_hub
+python-dotenv
+requests
+PyMuPDF
