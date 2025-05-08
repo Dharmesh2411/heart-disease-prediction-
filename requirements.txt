@@ -1,5 +1,5 @@
 streamlit
+pandas
+scikit-learn
 joblib
 huggingface_hub
-openai
-python-dotenv
