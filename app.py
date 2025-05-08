@@ -101,11 +101,23 @@ elif option == "Enter Manually":
         "thal": st.slider("Thal (1=Normal, 2=Fixed, 3=Reversible)", 1, 3, 2)
     }
 
+# Map the algorithm choice to the correct model in the dictionary
+model_choice_map = {
+    "Naive Bayes": "naive_bayes",
+    "Logistic Regression": "logistic_regression",
+    "SVM": "svm",
+    "KNN": "knn",
+    "Decision Tree": "decision_tree",
+    "Random Forest": "random_forest",
+    "XGBoost": "xgboost",
+    "Neural Network": "neural_network"
+}
+
 # Select the algorithm to use for prediction
 model_choice = st.selectbox("Choose Algorithm", ["Naive Bayes", "Logistic Regression", "SVM", "KNN", "Decision Tree", "Random Forest", "XGBoost", "Neural Network"])
 
-# Map the chosen model to the dictionary of models
-chosen_model = models[model_choice.lower().replace(" ", "_")]
+chosen_model_key = model_choice_map[model_choice]
+chosen_model = models[chosen_model_key]
 
 if st.button("Predict Heart Disease"):
     features = pd.DataFrame([input_data])
