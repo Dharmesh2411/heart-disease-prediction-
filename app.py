@@ -1,18 +1,10 @@
 import streamlit as st
+import pandas as pd
 import joblib
-import os
-import openai
 from huggingface_hub import hf_hub_download
+from sklearn.ensemble import RandomForestClassifier  # Required for joblib to load
 
-# Load environment variables
-from dotenv import load_dotenv
-load_dotenv()
-
-# Set Groq API key
-openai.api_key = os.getenv("GROQ_API_KEY")
-openai.api_base = "https://api.groq.com/openai/v1"
-
-st.set_page_config(page_title="Heart Disease Predictor", layout="centered")
+st.title("❤️ Heart Disease Predictor")
 
 # Load model from Hugging Face
 @st.cache_resource
@@ -22,66 +14,30 @@ def load_model():
 
 model = load_model()
 
-# Clinical features expected by the model
-features = ["age", "sex", "cp", "trestbps", "chol", "fbs", "restecg",
-            "thalach", "exang", "oldpeak", "slope", "ca", "thal"]
+st.subheader("🧪 Enter patient details:")
+age = st.number_input("Age", 20, 100)
+sex = st.selectbox("Sex", [0, 1])
+cp = st.selectbox("Chest Pain Type (cp)", [0, 1, 2, 3])
+trestbps = st.number_input("Resting Blood Pressure (trestbps)", 80, 200)
+chol = st.number_input("Serum Cholesterol (chol)", 100, 600)
+fbs = st.selectbox("Fasting Blood Sugar > 120 (fbs)", [0, 1])
+restecg = st.selectbox("Resting ECG Results", [0, 1, 2])
+thalach = st.number_input("Max Heart Rate Achieved (thalach)", 70, 210)
+exang = st.selectbox("Exercise-Induced Angina", [0, 1])
+oldpeak = st.number_input("ST depression (oldpeak)", 0.0, 6.0, step=0.1)
+slope = st.selectbox("Slope of peak exercise ST segment", [0, 1, 2])
+ca = st.selectbox("Number of major vessels (0–3)", [0, 1, 2, 3])
+thal = st.selectbox("Thalassemia (thal)", [0, 1, 2, 3])
 
-st.title("🫀 Heart Disease Prediction App")
-st.write("Predict the likelihood of heart disease using patient data or a medical report.")
+features = [[age, sex, cp, trestbps, chol, fbs, restecg,
+             thalach, exang, oldpeak, slope, ca, thal]]
 
-tab1, tab2 = st.tabs(["📝 Enter Manually", "📄 Upload Medical Report"])
-
-# --------------------- TAB 1: Manual Input ---------------------
-with tab1:
-    st.header("Enter Patient Details")
-    user_input = {}
-    for feature in features:
-        user_input[feature] = st.number_input(f"{feature.upper()}", step=1.0)
-
-    if st.button("🔍 Predict Manually"):
-        input_values = [user_input[feat] for feat in features]
-        prediction = model.predict([input_values])[0]
-        result_text = "⚠️ High Risk of Heart Disease!" if prediction == 1 else "✅ Low Risk of Heart Disease."
-        st.success(result_text)
-
-# --------------------- TAB 2: Report Upload ---------------------
-with tab2:
-    st.header("Upload or Paste Report")
-    report_text = st.text_area("Paste medical report here")
-
-    if st.button("🧠 Extract and Predict"):
-        with st.spinner("Analyzing report using Groq..."):
-
-            # Prompt LLM to extract structured values
-            prompt = f"""
-Extract the following clinical values from the text below and return only JSON:
-{', '.join(features)}.
-Report:
-\"\"\"{report_text}\"\"\"
-Return format:
-{{
-  "age": 0, "sex": 1, "cp": 0, "trestbps": 120, "chol": 200,
-  "fbs": 0, "restecg": 1, "thalach": 150, "exang": 0,
-  "oldpeak": 1.0, "slope": 2, "ca": 0, "thal": 3
-}}
-"""
-
-            try:
-                response = openai.ChatCompletion.create(
-                    model="llama3-70b-8192",
-                    messages=[
-                        {"role": "system", "content": "You are a helpful medical assistant."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.2
-                )
-                content = response['choices'][0]['message']['content']
-                parsed = eval(content) if isinstance(content, str) else content
-                input_list = [parsed[feat] for feat in features]
-                prediction = model.predict([input_list])[0]
-                result_text = "⚠️ High Risk of Heart Disease!" if prediction == 1 else "✅ Low Risk of Heart Disease."
-                st.success(result_text)
-                st.json(parsed)
-
-            except Exception as e:
-                st.error(f"Error: {e}")
+if st.button("🔍 Predict"):
+    prediction = model.predict(features)[0]
+    probability = model.predict_proba(features)[0][1]
+    
+    st.markdown("### 🩺 Result:")
+    if prediction == 1:
+        st.error(f"High chance of heart disease ({probability*100:.2f}%)")
+    else:
+        st.success(f"Low chance of heart disease ({(1-probability)*100:.2f}%)")
