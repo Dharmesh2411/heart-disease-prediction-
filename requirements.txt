@@ -1,8 +1,9 @@
 streamlit
-scikit-learn
 pandas
+scikit-learn
 joblib
 huggingface_hub
-python-dotenv
 requests
+python-dotenv
+matplotlib
 PyMuPDF
