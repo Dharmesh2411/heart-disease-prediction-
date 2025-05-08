@@ -13,15 +13,13 @@ load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Load all models from a single joblib file
 @st.cache_resource
-def load_all_models():
-    models_path = hf_hub_download(repo_id="jaik256/heartDiseasePredictor", filename="heart_disease_model.joblib")
-    return joblib.load(models_path)
+def load_model():
+    model_path = hf_hub_download(repo_id="jaik256/heartDiseasePredictor", filename="heart_disease_model.joblib")
+    return joblib.load(model_path)
 
-models = load_all_models()  # This will load the dictionary of models
+model = load_model()
 
-# Set up Streamlit UI
 st.title("❤️ Heart Disease Prediction App")
 st.markdown("Upload a report or enter health data to predict heart disease risk.")
 
@@ -101,29 +99,11 @@ elif option == "Enter Manually":
         "thal": st.slider("Thal (1=Normal, 2=Fixed, 3=Reversible)", 1, 3, 2)
     }
 
-# Map the algorithm choice to the correct model in the dictionary
-model_choice_map = {
-    "Naive Bayes": "naive_bayes",
-    "Logistic Regression": "logistic_regression",
-    "SVM": "svm",
-    "KNN": "knn",
-    "Decision Tree": "decision_tree",
-    "Random Forest": "random_forest",
-    "XGBoost": "xgboost",
-    "Neural Network": "neural_network"
-}
-
-# Select the algorithm to use for prediction
-model_choice = st.selectbox("Choose Algorithm", ["Naive Bayes", "Logistic Regression", "SVM", "KNN", "Decision Tree", "Random Forest", "XGBoost", "Neural Network"])
-
-chosen_model_key = model_choice_map[model_choice]
-chosen_model = models[chosen_model_key]
-
 if st.button("Predict Heart Disease"):
     features = pd.DataFrame([input_data])
-    prediction = chosen_model.predict(features)[0]
-    probability = chosen_model.predict_proba(features)[0][1]
+    prediction = model.predict(features)[0]
+    probability = model.predict_proba(features)[0][1]
 
-    st.subheader(f"🩺 Prediction Result Using {model_choice}:")
+    st.subheader("🩺 Prediction Result:")
     st.write("**Risk:**", "High" if prediction == 1 else "Low")
-    st.write(f"**Probability of Heart Disease:** {probability * 100:.2f}%")
+    st.write(f"**Probability of Heart Disease:** {probability*100:.2f}%")
