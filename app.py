@@ -74,46 +74,55 @@ def extract_features_from_report(report_text):
     return json.loads(content)
 
 # ---------------------- PDF Report Generator --------------------------
-def generate_pdf_with_fitz(name, input_data, predictions, probabilities, chart_path):
-    pdf_path = os.path.join(tempfile.gettempdir(), "heart_disease_report.pdf")
-    doc = fitz.open()
-    page = doc.new_page()
+import fitz  # PyMuPDF
+import datetime
 
-    y = 50
-    page.insert_text((50, y), "🫀 Heart Disease Prediction Report", fontsize=16, fontname="helv", fill=(0.8, 0, 0))
-    y += 30
+def generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities, chart_path):
+    # Create a new PDF document
+    pdf_doc = fitz.open()
+    page = pdf_doc.new_page()
 
-    page.insert_text((50, y), f"Patient Name: {name}", fontsize=12)
-    y += 15
-    page.insert_text((50, y), f"Age: {input_data.get('age', 'N/A')}", fontsize=12)
-    y += 30
+    y = 50  # Initial y-coordinate
+    line_spacing = 20
 
-    page.insert_text((50, y), "Input Features:", fontsize=12, fontname="helvb")
-    y += 20
+    # Add title
+    page.insert_text((50, y), "Heart Disease Prediction Report", fontsize=16, fontname="helv", fill=(0, 0, 0))
+    y += line_spacing * 2
+
+    # Add patient details
+    page.insert_text((50, y), f"Patient Name: {patient_name}", fontsize=12, fontname="helv")
+    y += line_spacing
+    page.insert_text((50, y), f"Date: {datetime.date.today().strftime('%B %d, %Y')}", fontsize=12, fontname="helv")
+    y += line_spacing
+
+    # Add input features
+    page.insert_text((50, y), "Input Features:", fontsize=12, fontname="helv")
+    y += line_spacing
     for key, value in input_data.items():
-        page.insert_text((50, y), f"{key}: {value}", fontsize=11)
-        y += 15
+        page.insert_text((60, y), f"{key}: {value}", fontsize=11, fontname="helv")
+        y += line_spacing
 
-    y += 10
-    page.insert_text((50, y), "Prediction Results:", fontsize=12, fontname="helvb")
-    y += 20
-    for model in predictions:
-        label = "High Risk" if predictions[model] == 1 else "Low Risk"
-        page.insert_text((50, y), f"{model}: {label} | Probability: {probabilities[model]*100:.2f}%", fontsize=11)
-        y += 15
-
-    best_model = max(probabilities, key=probabilities.get)
-    label_final = "High Risk" if predictions[best_model] == 1 else "Low Risk"
-    y += 20
-    page.insert_text((50, y), f"Final Summary: {label_final} (by {best_model})", fontsize=13, fontname="helvb", fill=(1, 0, 0 if label_final == "High Risk" else 0.5))
+    # Add predictions
+    y += line_spacing
+    page.insert_text((50, y), "Prediction Results:", fontsize=12, fontname="helv")
+    y += line_spacing
+    for model_name in predictions:
+        result = "High Risk" if predictions[model_name] == 1 else "Low Risk"
+        prob = probabilities[model_name] * 100
+        page.insert_text((60, y), f"{model_name}: {result} ({prob:.2f}%)", fontsize=11, fontname="helv")
+        y += line_spacing
 
     # Add chart image
-    img_rect = fitz.Rect(50, y + 30, 550, y + 330)
+    img_rect = fitz.Rect(50, y + 10, 400, y + 310)  # x0, y0, x1, y1
     page.insert_image(img_rect, filename=chart_path)
 
-    doc.save(pdf_path)
-    doc.close()
-    return pdf_path
+    # Save to a temporary PDF file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmpfile:
+        pdf_doc.save(tmpfile.name)
+        return tmpfile.name
+
+
+
 
 # ---------------------- UI --------------------------
 st.title("❤️ Heart Disease Prediction App")
