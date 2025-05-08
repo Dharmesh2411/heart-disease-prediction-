@@ -4,6 +4,7 @@ import joblib
 import requests
 import tempfile
 import pandas as pd
+import matplotlib.pyplot as plt
 from huggingface_hub import hf_hub_download
 import json
 
@@ -13,15 +14,29 @@ load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-@st.cache_resource
-def load_model():
-    model_path = hf_hub_download(repo_id="jaik256/heartDiseasePredictor", filename="heart_disease_model.joblib")
-    return joblib.load(model_path)
+# List of models
+model_files = {
+    "Logistic Regression": "logistic_regression_model.joblib",
+    "Decision Tree": "decision_tree_model.joblib",
+    "Random Forest": "random_forest_model.joblib",
+    "SVM": "svm_model.joblib",
+    "KNN": "knn_model.joblib",
+    "Naive Bayes": "naive_bayes_model.joblib",
+    "XGBoost": "xgboost_model.joblib"
+}
 
-model = load_model()
+@st.cache_resource
+def load_models():
+    models = {}
+    for name, filename in model_files.items():
+        model_path = hf_hub_download(repo_id="jaik256/heartDiseasePredictor", filename=filename)
+        models[name] = joblib.load(model_path)
+    return models
+
+models = load_models()
 
 st.title("❤️ Heart Disease Prediction App")
-st.markdown("Upload a report or enter health data to predict heart disease risk.")
+st.markdown("Upload a report or enter health data to predict heart disease risk using **multiple ML models.**")
 
 option = st.radio("Choose Input Method", ["Enter Manually", "Upload Health Report"])
 
@@ -101,9 +116,29 @@ elif option == "Enter Manually":
 
 if st.button("Predict Heart Disease"):
     features = pd.DataFrame([input_data])
-    prediction = model.predict(features)[0]
-    probability = model.predict_proba(features)[0][1]
+    predictions = {}
+    probabilities = {}
 
-    st.subheader("🩺 Prediction Result:")
-    st.write("**Risk:**", "High" if prediction == 1 else "Low")
-    st.write(f"**Probability of Heart Disease:** {probability*100:.2f}%")
+    for name, model in models.items():
+        pred = model.predict(features)[0]
+        prob = model.predict_proba(features)[0][1]
+        predictions[name] = pred
+        probabilities[name] = prob
+
+    # Show predictions
+    st.subheader("🩺 Prediction Results from All Models:")
+    for name in models.keys():
+        st.write(f"**{name}** → Risk: {'High' if predictions[name]==1 else 'Low'} | Probability: {probabilities[name]*100:.2f}%")
+
+    # Plot probabilities
+    st.subheader("📊 Model Comparison (Probability of Heart Disease)")
+    fig, ax = plt.subplots()
+    ax.bar(probabilities.keys(), [p*100 for p in probabilities.values()], color='skyblue')
+    ax.set_ylabel('Probability (%)')
+    ax.set_ylim(0, 100)
+    plt.xticks(rotation=45)
+    st.pyplot(fig)
+
+    # Best model
+    best_model = max(probabilities, key=probabilities.get)
+    st.success(f"✅ **Best Model: {best_model} with {probabilities[best_model]*100:.2f}% probability of heart disease.**")
