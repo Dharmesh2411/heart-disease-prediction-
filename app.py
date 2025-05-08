@@ -7,8 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from huggingface_hub import hf_hub_download
 import json
-
-# Load environment variables
+import fitz  # PyMuPDF
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -27,31 +26,16 @@ def load_models():
     models = {}
     for name, filename in model_filenames.items():
         model_path = hf_hub_download(repo_id="jaik256/heartDiseasePredictor", filename=filename)
-        
-        # Ensure the model file is not empty
         if os.path.getsize(model_path) == 0:
             raise ValueError(f"Model file {filename} is empty")
-
-        try:
-            # Use joblib for model loading
-            with open(model_path, "rb") as f:
-                models[name] = joblib.load(f)
-        except Exception as e:
-            st.error(f"Error loading model {filename}: {e}")
-            raise
-
+        with open(model_path, "rb") as f:
+            models[name] = joblib.load(f)
     return models
 
 models = load_models()
 
-# ---------------------- UI --------------------------
-st.title("❤️ Heart Disease Prediction App")
-st.markdown("Upload a report or enter health data to predict heart disease risk using multiple ML models!")
-
-option = st.radio("Choose Input Method", ["Enter Manually", "Upload Health Report"])
-
+# ---------------------- Groq API --------------------------
 def extract_features_from_report(report_text):
-    # Call Groq API (LLaMA3) to extract numeric features from health report
     prompt = f"""Extract the following values as numbers from the medical report below:
     - age
     - sex (0 = female, 1 = male)
@@ -89,13 +73,65 @@ def extract_features_from_report(report_text):
     content = result["choices"][0]["message"]["content"]
     return json.loads(content)
 
+# ---------------------- PDF Report Generator --------------------------
+def generate_pdf_with_fitz(name, input_data, predictions, probabilities, chart_path):
+    pdf_path = os.path.join(tempfile.gettempdir(), "heart_disease_report.pdf")
+    doc = fitz.open()
+    page = doc.new_page()
+
+    y = 50
+    page.insert_text((50, y), "🫀 Heart Disease Prediction Report", fontsize=16, fontname="helv", fill=(0.8, 0, 0))
+    y += 30
+
+    page.insert_text((50, y), f"Patient Name: {name}", fontsize=12)
+    y += 15
+    page.insert_text((50, y), f"Age: {input_data.get('age', 'N/A')}", fontsize=12)
+    y += 30
+
+    page.insert_text((50, y), "Input Features:", fontsize=12, fontname="helvb")
+    y += 20
+    for key, value in input_data.items():
+        page.insert_text((50, y), f"{key}: {value}", fontsize=11)
+        y += 15
+
+    y += 10
+    page.insert_text((50, y), "Prediction Results:", fontsize=12, fontname="helvb")
+    y += 20
+    for model in predictions:
+        label = "High Risk" if predictions[model] == 1 else "Low Risk"
+        page.insert_text((50, y), f"{model}: {label} | Probability: {probabilities[model]*100:.2f}%", fontsize=11)
+        y += 15
+
+    best_model = max(probabilities, key=probabilities.get)
+    label_final = "High Risk" if predictions[best_model] == 1 else "Low Risk"
+    y += 20
+    page.insert_text((50, y), f"Final Summary: {label_final} (by {best_model})", fontsize=13, fontname="helvb", fill=(1, 0, 0 if label_final == "High Risk" else 0.5))
+
+    # Add chart image
+    img_rect = fitz.Rect(50, y + 30, 550, y + 330)
+    page.insert_image(img_rect, filename=chart_path)
+
+    doc.save(pdf_path)
+    doc.close()
+    return pdf_path
+
+# ---------------------- UI --------------------------
+st.title("❤️ Heart Disease Prediction App")
+st.markdown("Upload a report or enter health data to predict heart disease risk using multiple ML models!")
+
+# Patient Name Input
+patient_name = st.text_input("Enter Patient Name", "")
+
+option = st.radio("Choose Input Method", ["Enter Manually", "Upload Health Report"])
+
+input_data = {}
+
 if option == "Upload Health Report":
     uploaded_file = st.file_uploader("Upload Report (TXT or PDF)", type=["txt", "pdf"])
     if uploaded_file:
         if uploaded_file.name.endswith(".txt"):
             report_text = uploaded_file.read().decode()
         else:
-            import fitz  # PyMuPDF
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                 tmp.write(uploaded_file.read())
                 tmp_path = tmp.name
@@ -125,8 +161,11 @@ elif option == "Enter Manually":
     }
 
 if st.button("Predict Heart Disease"):
+    if not patient_name.strip():
+        st.warning("Please enter the patient's name before prediction.")
+        st.stop()
+
     features = pd.DataFrame([input_data])
-    
     predictions = {}
     probabilities = {}
 
@@ -140,15 +179,22 @@ if st.button("Predict Heart Disease"):
     for name in predictions:
         st.write(f"**{name}:** {'High Risk' if predictions[name]==1 else 'Low Risk'} | Probability: {probabilities[name]*100:.2f}%")
 
-    # Find best model based on highest probability
     best_model = max(probabilities, key=probabilities.get)
     st.success(f"⭐ **Most Confident Model: {best_model} ({probabilities[best_model]*100:.2f}% probability of heart disease)**")
 
     # Plot comparison
     st.subheader("📊 Probability Comparison Across Models")
-    fig, ax = plt.subplots(figsize=(8,5))
+    fig, ax = plt.subplots(figsize=(8, 5))
     ax.bar(probabilities.keys(), [p*100 for p in probabilities.values()], color='skyblue')
     ax.set_ylabel("Probability (%)")
     ax.set_ylim(0, 100)
     ax.set_title("Heart Disease Probability by Model")
+    
+    chart_path = os.path.join(tempfile.gettempdir(), "model_probabilities.png")
+    fig.savefig(chart_path)
     st.pyplot(fig)
+
+    # Generate and download PDF report
+    pdf_path = generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities, chart_path)
+    with open(pdf_path, "rb") as f:
+        st.download_button("📄 Download Prediction Report", f, file_name="Heart_Disease_Report.pdf", mime="application/pdf")
