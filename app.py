@@ -81,35 +81,8 @@ def extract_features_from_report(report_text):
         st.error("❌ Failed to extract features from the report. Please ensure the report has clear numeric health data.")
         st.error(f"Error details: {str(e)}")
         st.stop()
-# Ensure required packages
-import numpy as np
 
-# Define the expected keys in the feature dictionary
-required_keys = ["age", "sex", "cp", "trestbps", "chol", "fbs", "restecg",
-                 "thalach", "exang", "oldpeak", "slope", "ca", "thal"]
 
-# Validate that all required keys are present in the response
-missing_keys = [k for k in required_keys if k not in features]
-if missing_keys:
-    st.error(f"❌ Missing keys from Groq response: {missing_keys}")
-    st.stop()
-
-# Try converting the features to float and reshape for prediction
-try:
-    input_values = [float(features[key]) for key in required_keys]
-    input_array = np.array(input_values).reshape(1, -1)
-except (ValueError, TypeError) as e:
-    st.error(f"❌ Feature conversion error: {e}")
-    st.write("🔍 Raw features received:", features)
-    st.stop()
-
-# Make prediction
-try:
-    pred = model.predict(input_array)[0]
-except Exception as e:
-    st.error(f"❌ Model prediction failed: {e}")
-    st.write("📊 Final input array sent to model:", input_array)
-    st.stop()
 
 
 # ---------------------- PDF Report Generator --------------------------
