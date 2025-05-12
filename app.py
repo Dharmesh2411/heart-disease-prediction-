@@ -162,6 +162,22 @@ elif option == "Enter Manually":
         "thal": st.slider("Thal (1=Normal, 2=Fixed, 3=Reversible)", 1, 3, 2)
     }
 
+# Handle missing values by prompting the user for input if any field is missing
+missing_fields = [key for key in ["age", "sex", "cp", "trestbps", "chol", "fbs", "restecg", "thalach", "exang", "oldpeak", "slope", "ca", "thal"]
+                  if key not in input_data or input_data[key] in [None, "", "NaN"]]
+
+if missing_fields:
+    st.warning(f"⚠️ Missing values detected for: {', '.join(missing_fields)}. Please fill them manually below.")
+    for field in missing_fields:
+        if field in ["sex", "fbs", "exang"]:
+            input_data[field] = st.selectbox(f"Enter value for {field}", [1, 0])
+        elif field in ["cp", "restecg", "slope", "ca", "thal"]:
+            input_data[field] = st.slider(f"Enter value for {field}", 0, 3 if field != "thal" else 3, 1)
+        elif field == "oldpeak":
+            input_data[field] = st.number_input(f"Enter value for {field}", 0.0, 6.0, 1.0)
+        else:
+            input_data[field] = st.number_input(f"Enter value for {field}", 0)
+
 if st.button("🔍 Predict Heart Disease"):
     if not patient_name.strip():
         st.warning("Please enter the patient's name before prediction.")
@@ -173,38 +189,27 @@ if st.button("🔍 Predict Heart Disease"):
 
     for name, model in models.items():
         pred = model.predict(features)[0]
-        prob = model.predict_proba(features)[0][1]
-        predictions[name] = pred
-        probabilities[name] = prob
+prob = model.predict_proba(features)[0][pred]
+predictions[name] = pred
+probabilities[name] = prob
+st.subheader("Prediction Results")
+for model_name in predictions:
+    result = "High Risk" if predictions[model_name] == 1 else "Low Risk"
+    prob = probabilities[model_name] * 100
+    st.write(f"{model_name}: {result} ({prob:.2f}%)")
 
-    st.subheader("🩺 Prediction Results:")
-    for name in predictions:
-        st.write(f"**{name}:** {'High Risk' if predictions[name]==1 else 'Low Risk'} | Probability: {probabilities[name]*100:.2f}%")
+# Generate prediction chart
+fig, ax = plt.subplots()
+ax.bar(predictions.keys(), [probabilities[name] * 100 for name in predictions])
+ax.set_xlabel('Model')
+ax.set_ylabel('Prediction Probability (%)')
+ax.set_title('Prediction Probabilities from Different Models')
 
-    best_model = max(probabilities, key=probabilities.get)
-    st.success(f"⭐ Most Confident Model: {best_model} ({probabilities[best_model]*100:.2f}% probability)")
+chart_path = "/tmp/prediction_chart.png"
+plt.savefig(chart_path)
+st.pyplot(fig)
 
-    # Accuracy chart
-    model_accuracies = {
-        "Logistic Regression": 0.83,
-        "Random Forest": 0.88,
-        "KNN": 0.79,
-        "Decision Tree": 0.76,
-        "SVM": 0.82,
-        "Naive Bayes": 0.75
-    }
+# Generate PDF report
+pdf_file = generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities, chart_path)
+st.download_button("Download PDF Report", pdf_file, file_name=f"{patient_name}_heart_disease_report.pdf")
 
-    st.subheader("📊 Accuracy Comparison of Models")
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.bar(model_accuracies.keys(), [v * 100 for v in model_accuracies.values()], color='tomato')
-    ax.set_ylabel("Accuracy (%)")
-    ax.set_ylim(0, 100)
-    ax.set_title("Model Accuracy Comparison")
-    plt.xticks(rotation=45)
-    chart_path = tempfile.NamedTemporaryFile(delete=False, suffix=".png").name
-    fig.savefig(chart_path)
-    st.pyplot(fig)
-
-    pdf_path = generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities, chart_path)
-    with open(pdf_path, "rb") as f:
-        st.download_button("📄 Download Full Report", f, file_name="Heart_Disease_Report.pdf", mime="application/pdf")
