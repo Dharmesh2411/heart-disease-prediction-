@@ -35,7 +35,7 @@ def load_models():
 
 models = load_models()
 
-# ---------------------- Groq API --------------------------
+# ---------------------- Groq API for Report Parsing --------------------------
 def extract_features_from_report(report_text):
     prompt = f"""Extract the following values as numbers from the medical report below:
     - age
@@ -55,7 +55,7 @@ def extract_features_from_report(report_text):
     Report:
     {report_text}
 
-    Return only a **valid JSON object** with keys: age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal.
+    Return only a valid JSON object with keys: age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal.
     No explanation or additional text.
     """
 
@@ -71,19 +71,14 @@ def extract_features_from_report(report_text):
     }
 
     response = requests.post(url, headers=headers, data=json.dumps(data))
-
     try:
         result = response.json()
         content = result["choices"][0]["message"]["content"]
-        # Try parsing valid JSON
         return json.loads(content)
     except Exception as e:
-        st.error("❌ Failed to extract features from the report. Please ensure the report has clear numeric health data.")
-        st.error(f"Error details: {str(e)}")
+        st.error("❌ Failed to extract features from the report.")
+        st.error(f"Error: {str(e)}")
         st.stop()
-
-
-
 
 # ---------------------- PDF Report Generator --------------------------
 def generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities, chart_path):
@@ -93,27 +88,27 @@ def generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities,
     y = 50
     line_spacing = 20
 
-    page.insert_text((50, y), "Heart Disease Prediction Report", fontsize=16, fontname="helv")
+    page.insert_text((50, y), "Heart Disease Prediction Report", fontsize=16)
     y += line_spacing * 2
 
-    page.insert_text((50, y), f"Patient Name: {patient_name}", fontsize=12, fontname="helv")
+    page.insert_text((50, y), f"Patient Name: {patient_name}", fontsize=12)
     y += line_spacing
-    page.insert_text((50, y), f"Date: {datetime.date.today().strftime('%B %d, %Y')}", fontsize=12, fontname="helv")
+    page.insert_text((50, y), f"Date: {datetime.date.today().strftime('%B %d, %Y')}", fontsize=12)
     y += line_spacing
 
-    page.insert_text((50, y), "Input Features:", fontsize=12, fontname="helv")
+    page.insert_text((50, y), "Input Features:", fontsize=12)
     y += line_spacing
     for key, value in input_data.items():
-        page.insert_text((60, y), f"{key}: {value}", fontsize=11, fontname="helv")
+        page.insert_text((60, y), f"{key}: {value}", fontsize=11)
         y += line_spacing
 
     y += line_spacing
-    page.insert_text((50, y), "Prediction Results:", fontsize=12, fontname="helv")
+    page.insert_text((50, y), "Prediction Results:", fontsize=12)
     y += line_spacing
     for model_name in predictions:
         result = "High Risk" if predictions[model_name] == 1 else "Low Risk"
         prob = probabilities[model_name] * 100
-        page.insert_text((60, y), f"{model_name}: {result} ({prob:.2f}%)", fontsize=11, fontname="helv")
+        page.insert_text((60, y), f"{model_name}: {result} ({prob:.2f}%)", fontsize=11)
         y += line_spacing
 
     img_rect = fitz.Rect(50, y + 10, 400, y + 310)
@@ -123,14 +118,14 @@ def generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities,
         pdf_doc.save(tmpfile.name)
         return tmpfile.name
 
-# ---------------------- UI --------------------------
+# ---------------------- Streamlit UI --------------------------
+st.set_page_config(page_title="Heart Disease Predictor", page_icon="❤️")
 st.title("❤️ Heart Disease Prediction App")
 st.markdown("Upload a report or enter health data to predict heart disease risk using multiple ML models!")
 
 patient_name = st.text_input("Enter Patient Name", "")
 
 option = st.radio("Choose Input Method", ["Enter Manually", "Upload Health Report"])
-
 input_data = {}
 
 if option == "Upload Health Report":
@@ -167,7 +162,7 @@ elif option == "Enter Manually":
         "thal": st.slider("Thal (1=Normal, 2=Fixed, 3=Reversible)", 1, 3, 2)
     }
 
-if st.button("Predict Heart Disease"):
+if st.button("🔍 Predict Heart Disease"):
     if not patient_name.strip():
         st.warning("Please enter the patient's name before prediction.")
         st.stop()
@@ -182,12 +177,12 @@ if st.button("Predict Heart Disease"):
         predictions[name] = pred
         probabilities[name] = prob
 
-    st.subheader("🩺 Prediction Results from Multiple Models:")
+    st.subheader("🩺 Prediction Results:")
     for name in predictions:
         st.write(f"**{name}:** {'High Risk' if predictions[name]==1 else 'Low Risk'} | Probability: {probabilities[name]*100:.2f}%")
 
     best_model = max(probabilities, key=probabilities.get)
-    st.success(f"⭐ **Most Confident Model: {best_model} ({probabilities[best_model]*100:.2f}% probability of heart disease)**")
+    st.success(f"⭐ Most Confident Model: {best_model} ({probabilities[best_model]*100:.2f}% probability)")
 
     # Accuracy chart
     model_accuracies = {
@@ -201,17 +196,15 @@ if st.button("Predict Heart Disease"):
 
     st.subheader("📊 Accuracy Comparison of Models")
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.bar(model_accuracies.keys(), [v * 100 for v in model_accuracies.values()], color='salmon')
+    ax.bar(model_accuracies.keys(), [v * 100 for v in model_accuracies.values()], color='tomato')
     ax.set_ylabel("Accuracy (%)")
     ax.set_ylim(0, 100)
     ax.set_title("Model Accuracy Comparison")
     plt.xticks(rotation=45)
-
     chart_path = tempfile.NamedTemporaryFile(delete=False, suffix=".png").name
     fig.savefig(chart_path)
     st.pyplot(fig)
 
-    # Generate PDF report
     pdf_path = generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities, chart_path)
     with open(pdf_path, "rb") as f:
-        st.download_button("📄 Download Prediction Report", f, file_name="Heart_Disease_Report.pdf", mime="application/pdf")
+        st.download_button("📄 Download Full Report", f, file_name="Heart_Disease_Report.pdf", mime="application/pdf")
