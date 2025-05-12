@@ -26,11 +26,14 @@ def load_models():
     }
     models = {}
     for name, filename in model_filenames.items():
-        model_path = hf_hub_download(repo_id="jaik256/heartDiseasePredictor", filename=filename)
-        if os.path.getsize(model_path) == 0:
-            raise ValueError(f"Model file {filename} is empty")
-        with open(model_path, "rb") as f:
-            models[name] = joblib.load(f)
+        try:
+            model_path = hf_hub_download(repo_id="jaik256/heartDiseasePredictor", filename=filename)
+            if os.path.getsize(model_path) == 0:
+                raise ValueError(f"Model file {filename} is empty")
+            with open(model_path, "rb") as f:
+                models[name] = joblib.load(f)
+        except Exception as e:
+            st.warning(f"Failed to load {name} model: {str(e)}")
     return models
 
 models = load_models()
