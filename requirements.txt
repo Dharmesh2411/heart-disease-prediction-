@@ -10,3 +10,4 @@ scikit-learn
 pdfplumber
 pytesseract
 pdf2image
+numpy
