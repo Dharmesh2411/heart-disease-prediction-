@@ -16,7 +16,17 @@ models = {
     "Naive Bayes": joblib.load("naive_bayes_model.pkl")
 }
 
-# Streamlit app configuration
+# Dummy accuracy values – replace with actual test scores if needed
+accuracies = {
+    "Logistic Regression": 0.82,
+    "Random Forest": 0.91,
+    "KNN": 0.78,
+    "Decision Tree": 0.76,
+    "SVM": 0.80,
+    "Naive Bayes": 0.74
+}
+
+# Streamlit UI setup
 st.set_page_config(page_title="Heart Disease Detection", layout="wide")
 st.title("❤️ Heart Disease Detection App")
 st.markdown("Predict heart disease using multiple ML models and compare results.")
@@ -58,7 +68,7 @@ input_data = {
 }
 
 # Generate PDF report
-def generate_pdf_with_fitz(name, inputs, predictions, probabilities, chart_path):
+def generate_pdf_with_fitz(name, inputs, predictions, chart_path):
     pdf_path = os.path.join(tempfile.gettempdir(), f"{name}_heart_report.pdf")
     doc = fitz.open()
     page = doc.new_page()
@@ -75,9 +85,8 @@ def generate_pdf_with_fitz(name, inputs, predictions, probabilities, chart_path)
     page.insert_text((50, y), "Prediction Results:", fontsize=12)
     for model, result in predictions.items():
         y += 20
-        prob = probabilities[model]
         status = "High Risk" if result == 1 else "Low Risk"
-        page.insert_text((60, y), f"{model}: {status} ({prob*100:.2f}%)", fontsize=11)
+        page.insert_text((60, y), f"{model}: {status}", fontsize=11)
 
     # Insert chart image
     img_rect = fitz.Rect(50, y + 40, 400, y + 280)
@@ -86,7 +95,7 @@ def generate_pdf_with_fitz(name, inputs, predictions, probabilities, chart_path)
     doc.save(pdf_path)
     return pdf_path
 
-# Predict
+# Predict button
 if st.button("Predict Heart Disease"):
     if not patient_name.strip():
         st.warning("Please enter the patient's name before prediction.")
@@ -94,50 +103,17 @@ if st.button("Predict Heart Disease"):
 
     features = pd.DataFrame([input_data])
     predictions = {}
-    probabilities = {}
 
     for name, model in models.items():
         pred = model.predict(features)[0]
-        prob = model.predict_proba(features)[0][1]
         predictions[name] = pred
-        probabilities[name] = prob
 
     st.subheader("🩺 Prediction Results from Multiple Models:")
     for name in predictions:
-        st.write(f"**{name}:** {'High Risk' if predictions[name]==1 else 'Low Risk'} | Probability: {probabilities[name]*100:.2f}%")
+        st.write(f"**{name}:** {'High Risk' if predictions[name]==1 else 'Low Risk'}")
 
-    best_model = max(probabilities, key=probabilities.get)
-    st.success(f"⭐ **Most Confident Model: {best_model} ({probabilities[best_model]*100:.2f}% probability of heart disease)**")
-
-    # Plot prediction probability comparison
-    st.subheader("📊 Probability Comparison Across Models")
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.bar(probabilities.keys(), [p*100 for p in probabilities.values()], color='skyblue')
-    ax.set_ylabel("Probability (%)")
-    ax.set_ylim(0, 100)
-    ax.set_title("Heart Disease Probability by Model")
-
-    chart_path = os.path.join(tempfile.gettempdir(), "model_probabilities.png")
-    fig.savefig(chart_path)
-    st.pyplot(fig)
-
-    # Generate PDF report
-    pdf_path = generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities, chart_path)
-    with open(pdf_path, "rb") as f:
-        st.download_button("📄 Download Prediction Report", f, file_name="Heart_Disease_Report.pdf", mime="application/pdf")
-
-    # ------------------ ACCURACY CHART ------------------
+    # Accuracy chart
     st.subheader("📈 Model Accuracy Comparison")
-    # Dummy accuracy values – replace with actual test set results if available
-    accuracies = {
-        "Logistic Regression": 0.82,
-        "Random Forest": 0.91,
-        "KNN": 0.78,
-        "Decision Tree": 0.76,
-        "SVM": 0.80,
-        "Naive Bayes": 0.74
-    }
-
     fig2, ax2 = plt.subplots(figsize=(8, 5))
     bars = ax2.bar(accuracies.keys(), [v*100 for v in accuracies.values()], color='gray')
     best_model_acc = max(accuracies, key=accuracies.get)
@@ -148,4 +124,12 @@ if st.button("Predict Heart Disease"):
     ax2.set_title("Model Accuracy Comparison")
     for i, v in enumerate(accuracies.values()):
         ax2.text(i, v*100 + 1, f"{v*100:.1f}%", ha='center', fontsize=10)
+
+    chart_path = os.path.join(tempfile.gettempdir(), "accuracy_chart.png")
+    fig2.savefig(chart_path)
     st.pyplot(fig2)
+
+    # Generate PDF with accuracy chart only
+    pdf_path = generate_pdf_with_fitz(patient_name, input_data, predictions, chart_path)
+    with open(pdf_path, "rb") as f:
+        st.download_button("📄 Download Prediction Report", f, file_name="Heart_Disease_Report.pdf", mime="application/pdf")
