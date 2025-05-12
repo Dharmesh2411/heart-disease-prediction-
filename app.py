@@ -55,7 +55,8 @@ def extract_features_from_report(report_text):
     Report:
     {report_text}
 
-    Return as JSON dictionary with keys: age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal.
+    Return only a **valid JSON object** with keys: age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal.
+    No explanation or additional text.
     """
 
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -70,9 +71,17 @@ def extract_features_from_report(report_text):
     }
 
     response = requests.post(url, headers=headers, data=json.dumps(data))
-    result = response.json()
-    content = result["choices"][0]["message"]["content"]
-    return json.loads(content)
+
+    try:
+        result = response.json()
+        content = result["choices"][0]["message"]["content"]
+        # Try parsing valid JSON
+        return json.loads(content)
+    except Exception as e:
+        st.error("❌ Failed to extract features from the report. Please ensure the report has clear numeric health data.")
+        st.error(f"Error details: {str(e)}")
+        st.stop()
+
 
 # ---------------------- PDF Report Generator --------------------------
 def generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities, chart_path):
