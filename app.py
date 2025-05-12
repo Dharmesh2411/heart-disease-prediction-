@@ -8,9 +8,10 @@ import matplotlib.pyplot as plt
 from huggingface_hub import hf_hub_download
 import json
 import fitz  # PyMuPDF
+import datetime
 from dotenv import load_dotenv
-load_dotenv()
 
+load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # ---------------------- Load models --------------------------
@@ -74,35 +75,27 @@ def extract_features_from_report(report_text):
     return json.loads(content)
 
 # ---------------------- PDF Report Generator --------------------------
-import fitz  # PyMuPDF
-import datetime
-
 def generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities, chart_path):
-    # Create a new PDF document
     pdf_doc = fitz.open()
     page = pdf_doc.new_page()
 
-    y = 50  # Initial y-coordinate
+    y = 50
     line_spacing = 20
 
-    # Add title
-    page.insert_text((50, y), "Heart Disease Prediction Report", fontsize=16, fontname="helv", fill=(0, 0, 0))
+    page.insert_text((50, y), "Heart Disease Prediction Report", fontsize=16, fontname="helv")
     y += line_spacing * 2
 
-    # Add patient details
     page.insert_text((50, y), f"Patient Name: {patient_name}", fontsize=12, fontname="helv")
     y += line_spacing
     page.insert_text((50, y), f"Date: {datetime.date.today().strftime('%B %d, %Y')}", fontsize=12, fontname="helv")
     y += line_spacing
 
-    # Add input features
     page.insert_text((50, y), "Input Features:", fontsize=12, fontname="helv")
     y += line_spacing
     for key, value in input_data.items():
         page.insert_text((60, y), f"{key}: {value}", fontsize=11, fontname="helv")
         y += line_spacing
 
-    # Add predictions
     y += line_spacing
     page.insert_text((50, y), "Prediction Results:", fontsize=12, fontname="helv")
     y += line_spacing
@@ -112,23 +105,17 @@ def generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities,
         page.insert_text((60, y), f"{model_name}: {result} ({prob:.2f}%)", fontsize=11, fontname="helv")
         y += line_spacing
 
-    # Add chart image
-    img_rect = fitz.Rect(50, y + 10, 400, y + 310)  # x0, y0, x1, y1
+    img_rect = fitz.Rect(50, y + 10, 400, y + 310)
     page.insert_image(img_rect, filename=chart_path)
 
-    # Save to a temporary PDF file
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmpfile:
         pdf_doc.save(tmpfile.name)
         return tmpfile.name
-
-
-
 
 # ---------------------- UI --------------------------
 st.title("❤️ Heart Disease Prediction App")
 st.markdown("Upload a report or enter health data to predict heart disease risk using multiple ML models!")
 
-# Patient Name Input
 patient_name = st.text_input("Enter Patient Name", "")
 
 option = st.radio("Choose Input Method", ["Enter Manually", "Upload Health Report"])
@@ -191,29 +178,29 @@ if st.button("Predict Heart Disease"):
     best_model = max(probabilities, key=probabilities.get)
     st.success(f"⭐ **Most Confident Model: {best_model} ({probabilities[best_model]*100:.2f}% probability of heart disease)**")
 
-    # Plot comparison
-    # 📊 Accuracy Comparison Across Models
-st.subheader("📊 Accuracy Comparison of Models")
+    # Accuracy chart
+    model_accuracies = {
+        "Logistic Regression": 0.83,
+        "Random Forest": 0.88,
+        "KNN": 0.79,
+        "Decision Tree": 0.76,
+        "SVM": 0.82,
+        "Naive Bayes": 0.75
+    }
 
-# Example hardcoded accuracy values (replace with real values if available)
-model_accuracies = {
-    "Logistic Regression": 0.83,
-    "Random Forest": 0.88,
-    "KNN": 0.79,
-    "Decision Tree": 0.76,
-    "SVM": 0.82,
-    "Naive Bayes": 0.75
-}
+    st.subheader("📊 Accuracy Comparison of Models")
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.bar(model_accuracies.keys(), [v * 100 for v in model_accuracies.values()], color='salmon')
+    ax.set_ylabel("Accuracy (%)")
+    ax.set_ylim(0, 100)
+    ax.set_title("Model Accuracy Comparison")
+    plt.xticks(rotation=45)
 
-fig, ax = plt.subplots(figsize=(8, 5))
-ax.bar(model_accuracies.keys(), [v * 100 for v in model_accuracies.values()], color='salmon')
-ax.set_ylabel("Accuracy (%)")
-ax.set_ylim(0, 100)
-ax.set_title("Model Accuracy Comparison")
-plt.xticks(rotation=45)
-st.pyplot(fig)
+    chart_path = tempfile.NamedTemporaryFile(delete=False, suffix=".png").name
+    fig.savefig(chart_path)
+    st.pyplot(fig)
 
-    # Generate and download PDF report
-    pdf_path = generate_pdf_with_fitz(patient_name, input_data, predictions, accuracies, chart_path)
+    # Generate PDF report
+    pdf_path = generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities, chart_path)
     with open(pdf_path, "rb") as f:
-        st.download_button("📄 Download Prediction Report", f, file_name="Heart_Disease_Report.pdf", mime="application/pdf") 
+        st.download_button("📄 Download Prediction Report", f, file_name="Heart_Disease_Report.pdf", mime="application/pdf")
