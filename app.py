@@ -214,6 +214,6 @@ plt.xticks(rotation=45)
 st.pyplot(fig)
 
     # Generate and download PDF report
-    pdf_path = generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities, chart_path)
+    pdf_path = generate_pdf_with_fitz(patient_name, input_data, predictions, accuracies, chart_path)
     with open(pdf_path, "rb") as f:
         st.download_button("📄 Download Prediction Report", f, file_name="Heart_Disease_Report.pdf", mime="application/pdf") 
