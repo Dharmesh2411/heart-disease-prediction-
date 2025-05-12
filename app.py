@@ -37,44 +37,38 @@ def load_models():
 models = load_models()
 
 # ---------------------- Groq API --------------------------
-def extract_features_from_report(report_text):
-    prompt = f"""Extract the following values as numbers from the medical report below:
-    - age
-    - sex (0 = female, 1 = male)
-    - cp (0–3: chest pain type)
-    - trestbps (resting blood pressure)
-    - chol (serum cholesterol)
-    - fbs (fasting blood sugar > 120 mg/dl: 1, else 0)
-    - restecg (resting ECG: 0–2)
-    - thalach (max heart rate)
-    - exang (exercise-induced angina: 1 = yes, 0 = no)
-    - oldpeak
-    - slope (0–2)
-    - ca (number of major vessels: 0–3)
-    - thal (1 = normal, 2 = fixed defect, 3 = reversible defect)
+if choice == "Upload Report":
+    st.subheader("📄 Upload and Analyze Medical Report (PDF)")
+    uploaded_file = st.file_uploader("Upload PDF", type="pdf")
 
-    Report:
-    {report_text}
+    if uploaded_file is not None:
+        with open("temp.pdf", "wb") as f:
+            f.write(uploaded_file.read())
 
-    Return as JSON dictionary with keys: age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal.
-    """
+        with st.spinner("Extracting text from PDF..."):
+            extracted_text = extract_features_from_pdf("temp.pdf")
 
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "model": "llama3-8b-8192",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.2
-    }
+        st.subheader("📜 Extracted Report Text")
+        st.code(extracted_text[:5000] + ("..." if len(extracted_text) > 5000 else ""), language="text")
 
-    response = requests.post(url, headers=headers, data=json.dumps(data))
-    result = response.json()
-    content = result["choices"][0]["message"]["content"]
-    return json.loads(content)
+        if st.button("Ask AI about this report"):
+            with st.spinner("Contacting medical assistant..."):
+                prompt = f"This is a patient's medical report:\n{extracted_text[:4000]}\n\nGive a summary of this report in simple terms."
+                try:
+                    response = client.chat.completions.create(
+                        model="mixtral-8x7b-32768",
+                        messages=[
+                            {"role": "system", "content": "You are a helpful medical assistant."},
+                            {"role": "user", "content": prompt}
+                        ]
+                    )
+                    summary = response.choices[0].message.content
+                    with st.expander("🧠 AI's Summary", expanded=True):
+                        st.write(summary)
+                except Exception as e:
+                    st.error(f"API Error: {e}")
 
+    
 # ---------------------- PDF Report Generator --------------------------
 def generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities, chart_path):
     pdf_doc = fitz.open()
