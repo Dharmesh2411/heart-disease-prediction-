@@ -118,7 +118,6 @@ st.title("❤️ Heart Disease Prediction App")
 st.markdown("Upload a report or enter health data to predict heart disease risk using multiple ML models!")
 
 patient_name = st.text_input("Enter Patient Name", "")
-
 option = st.radio("Choose Input Method", ["Enter Manually", "Upload Health Report"])
 
 input_data = {}
@@ -178,30 +177,3 @@ if st.button("Predict Heart Disease"):
 
     best_model = max(probabilities, key=probabilities.get)
     st.success(f"⭐ **Most Confident Model: {best_model} ({probabilities[best_model]*100:.2f}% probability of heart disease)**")
-
-    # Accuracy chart
-    model_accuracies = {
-        "Logistic Regression": 0.83,
-        "Random Forest": 0.88,
-        "KNN": 0.79,
-        "Decision Tree": 0.76,
-        "SVM": 0.82,
-        "Naive Bayes": 0.75
-    }
-
-    st.subheader("📊 Accuracy Comparison of Models")
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.bar(model_accuracies.keys(), [v * 100 for v in model_accuracies.values()], color='salmon')
-    ax.set_ylabel("Accuracy (%)")
-    ax.set_ylim(0, 100)
-    ax.set_title("Model Accuracy Comparison")
-    plt.xticks(rotation=45)
-
-    chart_path = tempfile.NamedTemporaryFile(delete=False, suffix=".png").name
-    fig.savefig(chart_path)
-    st.pyplot(fig)
-
-    # Generate PDF report
-    pdf_path = generate_pdf_with_fitz(patient_name, input_data, predictions, probabilities, chart_path)
-    with open(pdf_path, "rb") as f:
-        st.download_button("📄 Download Prediction Report", f, file_name="Heart_Disease_Report.pdf", mime="application/pdf")
